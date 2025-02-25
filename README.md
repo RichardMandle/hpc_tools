@@ -5,7 +5,7 @@ Python and Bash scripts for high performance computing workflows on ARC3/4 and A
 Simple plotter of csv data using python. Arguments:<br>-i - input .csv file.<br>-t - title for plot.<br>-x - x-label for plot, if not in header of .csv.<br>-y - y-label for plot, if not in header of csv.<br><br>
 <br><br>Example:
 
-```python $HOME/py_files/plt_csv.py -i P1.csv<br>```
+```python $HOME/py_files/plt_csv.py -i P1.csv```<br>
 ![image](https://github.com/user-attachments/assets/42b89ad7-7bbb-4aa8-8ec8-4aef8224e24f)
 
 # plt_xvg.py
