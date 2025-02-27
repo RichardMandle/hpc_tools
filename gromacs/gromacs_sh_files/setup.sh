@@ -27,9 +27,8 @@ echo "Inserting $nmols molecules..."
 
 module load $gmx_version # Load the specified GROMACS version
 
-sed -i "s/ref-t =.*/ref-t =          $K/" $HOME/mdp/MD1.mdp # Update temperature in the MDP file
-sed -i "s/ref-t =.*/ref-t =          $K/" $HOME/mdp/efield.mdp # Update temperature in the e-field MDP file
-
+sed -i "s/ref-t =.*/ref-t =          $K/" $HOME/gromacs_mdp/MD1.mdp      # Update temperature in the MDP file
+sed -i "s/ref-t =.*/ref-t =          $K/" $HOME/gromacs_mdp/efield.mdp   # Update temperature in the e-field MDP file
 
 gmx insert-molecules -ci *_GMX.gro -nmol $nmols -rot xyz -box $box $box $box -o simubox -try $try # Insert molecules into the simulation box
 
@@ -42,6 +41,8 @@ if [ "$setup_only" = true ]; then
     echo "Setup complete. No jobs submitted (setup-only mode)."
     exit 0
 fi
+
+echo "Setup complete. Submitting jobs..."
 
 # Submit jobs for energy minimization and equilibration. EM1, EM2 and so on increase the tollerance.
 jid1=$(sbatch --job-name="${loc}GROMPP1" $HOME/gromacs_grompp/GROMPP1.sh | awk '{print $4}')

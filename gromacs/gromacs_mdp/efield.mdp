@@ -38,7 +38,7 @@ DispCorr      = EnerPres     ; apply long range dispersion corrections for Energ
               
 ; Temperature coupling                 
 tcoupl          = v-rescale         ; Temperature coupling algorithm
-ref-t =          400
+ref-t =          333
 tau-t =            1
 tc-grps = system           ; Reference temperatures (K) per group
 nsttcouple      = 10                   ; Frequency of temperature coupling
