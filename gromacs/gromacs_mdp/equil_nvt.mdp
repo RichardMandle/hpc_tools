@@ -1,0 +1,60 @@
+; high temperature equilibration in NVT ensemble
+; Preprocessing
+define        = -DPOSRES     ; Position restrain protein heavy atoms
+
+; Run control
+integrator    = md           ; Algorithm: Leap-Frog integrator
+dt            = 0.002        ; Timestep: 1 fs
+tinit         = 0            ; Starting time
+nsteps        = 5000000       ; Number of steps: 50 000 * 2 fs = 100 000 fs = 100 ps
+comm-mode     = Linear
+nstcomm       = 100
+
+; Output control
+nstxout            = 50000    ;  10 trr output frames
+nstvout            = 50000
+nstfout            = 50000
+nstxout-compressed = 5000     ; 100 xtc output frames
+nstlog             = 1000
+nstcalcenergy      = 1000
+nstenergy          = 1000     ; 500 energy output frames
+ 
+; Neighbor searching
+cutoff-scheme = Verlet       ; pair list with buffering                                              
+nstlist       = 20           ; Frequency to update the neighbor list                                 
+ns-type       = grid         ; Make a grid in the box and only check atoms in neighboring grid cells 
+pbc           = xyz          ; Periodic boundary conditions in all directions                        
+
+; Electrostatics
+coulombtype    = PME         ; Particle-Mesh-Ewals electrostatics                         
+pme-order      = 4           ; Interpolation order for PME. 4 equals cubic interpolation. 
+fourierspacing = 0.10        ; Fourier-space grid point spacing (lower limit)             
+rcoulomb       = 1.2         ; Distance for the Coulomb cut-off                           
+
+; VdW
+rvdw          = 1.2          ; distance for the Lennard-Jones or cut-off                       
+DispCorr      = EnerPres     ; apply long range dispersion corrections for Energy and Pressure 
+
+; Temperature coupling                 
+tcoupl          = v-rescale            ; Temperature coupling algorithm
+ref-t =          600
+tau-t =            1
+tc-grps = system           ; Reference temperatures (K) per group
+nsttcouple      = 10                   ; Frequency of temperature coupling
+
+; Pressure coupling
+pcoupl           = no           ; Pressure coupling algorithm
+
+; Velocity generation
+gen-vel       = yes                    ; Generate new random velocities from Boltzman distribution
+gen-temp      = 1                    ; At this temperature (K)
+
+; Bonds
+continuation         = no              ; Apply constraints to the start configuration 
+constraints          = all-bonds       ; Constrain all bonds to make larger timestep possible
+
+constraint-algorithm = LINCS           ; Constraint algorithm
+lincs-order          = 6               ; Some contraint algorithm settings
+lincs-iter           = 1
+lincs-warnangle      = 30
+
