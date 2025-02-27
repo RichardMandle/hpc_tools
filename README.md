@@ -54,4 +54,4 @@ Make a SGE job submission file (.sh) from a Gaussian input script. Arguments:<br
 Make a SLURM job submission file (.sh) from a Gaussian input script. Arguments:<br>-i input.gjf file.
 
 # pygauss
-A python module with a lot of tools for interacting with Gaussian output and plotting/viewing spectra
+A python module with a lot of tools for interacting with Gaussian output and plotting/viewing spectra (https://github.com/RichardMandle/pygauss)
