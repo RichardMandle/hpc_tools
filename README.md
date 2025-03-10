@@ -48,10 +48,30 @@ You can edit the .mdp files for additional control over the simulations. By defa
 
 # Gaussian Tools
 ## gjf2sge.py
-Make a SGE job submission file (.sh) from a Gaussian input script. Arguments:<br>-i input.gjf file.
+Make a SGE job submission file (.sh) from a Gaussian input file. Can work with single files or multiple (task arrays). Reads job dependency and requests apropriate resource from the HPC queue. Arguments:<br>-i input.gjf file.<br>-t input - creates a task array .sh file for all .gjf files named "input"; e.g. "input_1.gjf, input_2.gjf, ... input_n.gjf". Note, task array creation hasn't been thoroughly tested.
 
 ## gjf2slurm.py
 Make a SLURM job submission file (.sh) from a Gaussian input script. Arguments:<br>-i input.gjf file.
+
+## tdscf_screen.py
+Reads a Gaussian .log file (given by -```-i```) and creates an array of follow-on jobs designed to explore different combinations of functional, basis set, dispersion correction, solvation, no. of states for the TD job etc. Initially performs OPT at the stated level, followed by a single point TD-SCF calculation. Arguments:<br><br>
+```-cpu```: Number of CPU cores to use.<br>
+```-mem```: Ammount of memory to use (in GB).<br>
+```-f```: Functional to use (pass a list; defaults to B3LYP PBE).<br>
+```-b```: Basis set to use (pass a list; defaults to "6-31G(d)", "cc-pVDZ", "aug-cc-pVDZ", "cc-pVTZ").<br>
+```-ed```: Toggles GD3BJ empirical dispersion on/off (default = off).<br>
+```-sol```: Toggles solvation on/off (default = off).<br>
+```--solvation_model```: Pass a list of solvation models to use (default = "scrf=(scipcm,solvent=methanol)").<br>
+```-ns```: Number of states for the TD-SCF job (default = 10).<br>
+```-o```: Output base filename for the generated .gjf files. If not provided, it'll default to that of the input file + ```-array```.<br>
+```--remove_existing```: Will remove existing .gjf files with the same name as the output (default = on).<br>
+<br>
+Can be used with gjf2sge.py in task array mode to quickly set up jobs. For example:
+
+```python tdscf_screen.py -i my_optimised_geometry.log -f "b3LYP" "B97D3" "B97D3" -sol -o "test_job" -cpu 8 -mem 8```<br>
+Creates 24x jobs using the 3x functionals, the 4x default basis sets, both with and without solvation.<br><br>
+Using gjf2sge.py we can quickly create a SGE wrapper for the jobsubmission:<br>
+```python gjf2sge.py -t test_job```
 
 ## pygauss
 A python module with a lot of tools for interacting with Gaussian output and plotting/viewing spectra (https://github.com/RichardMandle/pygauss)
