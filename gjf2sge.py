@@ -29,7 +29,7 @@ def make_sge_script(args, vmem = '8G', nproc = 8, maxdisk = 8):
         num_tasks = get_task_count(args)
     else:
         script_filename = args.input.split('.')[0] + '.sh'
-            with open(script_filename, 'w') as f:        f.write('#$ -cwd\n')        f.write('#$ -V\n')        f.write('#$ -l h_rt=48:00:00\n')        f.write(f'#$ -l h_vmem={int((vmem / nproc) * 1.1)}\n') # SGE allocates memory per core, so the total ram requested should be vmem/nproc *1.1 (must be int for Gaussian; the extra 10% to stop jobs failing for being OOM)        f.write(f'#$ -pe smp {nproc}\n')        f.write(f'#$ -l disk={maxdisk}G\n')
+            with open(script_filename, 'w') as f:        f.write('#$ -cwd\n')        f.write('#$ -V\n')        f.write('#$ -l h_rt=48:00:00\n')        f.write(f'#$ -l h_vmem={int((vmem / nproc) * 1.1)}G\n') # SGE allocates memory per core, so the total ram requested should be vmem/nproc *1.1 (must be int for Gaussian; the extra 10% to stop jobs failing for being OOM)        f.write(f'#$ -pe smp {nproc}\n')        f.write(f'#$ -l disk={maxdisk}G\n')
         if args.task: # if its a task array job, we need to add this line.
             f.write(f'#$ -t 1-{num_tasks}\n')        
         f.write('module add gaussian\n')        f.write('export GAUSS_SCRDIR=$TMPDIR\n')       

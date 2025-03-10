@@ -104,9 +104,9 @@ def generate_gjf_files(args):
         file_counter += 1
         
         with open(gjf_filename, 'w') as gjf_file:
-            # Write the OPT job section.
+            # Write the OPT job section.S
             gjf_file.write(f"%chk={chk_filename}\n")
-            gjf_file.write(f"%mem={args.mem}\n")
+            gjf_file.write(f"%mem={args.mem}GB\n")
             gjf_file.write(f"%nprocshared={args.cpu}\n")
             gjf_file.write(f"{route_opt}\n\n")
             gjf_file.write(f"Title Card: OPT job generated from {args.input}\n\n")
