@@ -1,81 +1,223 @@
 #!/bin/bash
-# a script for simplifying the MD simulation setup with gromacs
+# ==============================================================================
+# setup.sh - GROMACS simulation setup script
+#
+# This script builds and submits a sequence of GROMACS simulation jobs:
+# - Energy minimizations
+# - Equilibrations (NVT and NPT)
+# - (Optional) Electric field biasing
+# - Production MD
+#
+# USAGE EXAMPLES:
+#
+# 1. Full fresh simulation starting from molecule insertion:
+#    bash setup.sh -n 400 -b 8 -t 100 -k 400 -v gromacs/2024.4
+#
+# 2. Setup molecules and topology only, without submitting any jobs:
+#    bash setup.sh -n 400 -b 8 -t 100 -k 400 -v gromacs/2024.4 -s
+#
+# 3. Resume from equilibration stage only (skip energy minimization):
+#    bash setup.sh -f eq
+#
+# 4. Resume from electric field biasing stage (after equilibrations):
+#    bash setup.sh -f ef -e
+#
+# 5. Resume from production MD stage only (no e-field or equilibration):
+#    bash setup.sh -f md
+#
+# FLAG OPTIONS:
+#
+# -n   Number of molecules to insert
+# -b   Box size (nm)
+# -t   Number of insertion attempts
+# -k   Target temperature (K)
+# -v   GROMACS module version (default: "gromacs")
+# -e   Enable electric field bias
+# -s   Setup only (no job submission)
+# -f   Start from stage: em (minimization), eq (equilibration), ef (efield), md (production MD)
+#
+# Author - Dr. R. Mandle, UoL, 2024/5
+# ==============================================================================
 
-
+# --- code begins --- #
 shopt -s extglob
 
-# Default GROMACS version
+# define our default settings
 gmx_version="gromacs"
-setup_only=false  # Default to false, meaning jobs will be submitted
-electric_field=false  # Default to false, meaning electric field jobs are NOT submitted
+setup_only=false
+electric_field=false
+start_from="em"
 
-while getopts n:b:t:k:v:es flag
+while getopts n:b:t:k:v:esf: flag
 do
     case "${flag}" in
-        n) nmols=${OPTARG};;        # number of mols to shove in that box
-        b) box=${OPTARG};;          # initial box size
-        t) try=${OPTARG};;          # number of tries when filling box
-        k) K=${OPTARG};;            # production MD run temperature (in K)
-        v) gmx_version=${OPTARG};;  # flag for GROMACS version
-        e) electric_field=true;;    # flag to enable field-based simulation
-        s) setup_only=true;;        # flag to only prepare simulation but not submit jobs
+        n) nmols=${OPTARG};;
+        b) box=${OPTARG};;
+        t) try=${OPTARG};;
+        k) K=${OPTARG};;
+        v) gmx_version=${OPTARG};;
+        e) electric_field=true;;
+        s) setup_only=true;;
+        f) start_from=${OPTARG};;  # from which stage? em, eq, ef, md?
     esac
 done
 
+# this will pass a useful list of commands if the user does setup.sh -h or setup.sh --help etc.
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    cat <<EOF
+setup.sh - Automate GROMACS simulation job setup and submission
+
+Usage:
+  bash setup.sh [options]
+
+Options:
+  -n   Number of molecules
+  -b   Box size (nm)
+  -t   Number of insertion tries
+  -k   Target temperature (K)
+  -v   GROMACS version (default "gromacs")
+  -e   Enable electric field biasing
+  -s   Setup only, do not submit jobs
+  -f   Stage to start from: em, eq, ef, md
+  -h, --help  Show this help message
+
+Examples:
+  bash setup.sh -n 400 -b 8 -t 100 -k 400 -v gromacs/2024.4
+  bash setup.sh -f eq
+  bash setup.sh -f md
+
+EOF
+    exit 0
+fi
+
 echo "Using GROMACS version: $gmx_version"
-echo "Inserting $nmols molecules..."
+echo "Starting from stage: $start_from"
 
-module load $gmx_version # Load the specified GROMACS version
+# load the gromacs module
+module unload gromacs
+module load $gmx_version
 
-sed -i "s/ref-t =.*/ref-t =          $K/" $HOME/gromacs_mdp/MD1.mdp      # Update temperature in the MDP file
-sed -i "s/ref-t =.*/ref-t =          $K/" $HOME/gromacs_mdp/efield.mdp   # Update temperature in the e-field MDP file
+# this code aims to submit jobs safely and will cause the whole chain to fail if anything is wrong
+submit_job() {
+    local script=$1
+    jid=$(sbatch "$script" | awk '{print $4}')
+    if [ -z "$jid" ]; then
+        echo "Error: sbatch submission failed for $script"
+        exit 1
+    fi
+    echo "Submitted $script with JobID $jid"
+}
 
-gmx insert-molecules -ci *_GMX.gro -nmol $nmols -rot xyz -box $box $box $box -o simubox -try $try # Insert molecules into the simulation box
+# we'll generate GROMPP steps on the fly rather than having 7 or 8 seperate .sh files for each GROMPP stage
+generate_and_submit_grompp() {
+    local mdpfile=$1
+    local jobname=$2
+    local grofile=$3
+    local topfile=$4
+    local cptfile=$5
+    local output=$6
+    local depend=${7:-}  # optional dependency
 
-sed "s/ 1/ ${nmols}/g" *GMX.top > topology.top # Update the topology file with the correct number of molecules
+    local temp_script=$(mktemp grompp_job_${jobname}_XXXXXX.sh)
 
-loc=${PWD##*/} # Generate a unique job prefix based on the current directory name
+    echo "#!/bin/bash
+#SBATCH --job-name=${jobname}
+#SBATCH --time=00:05:00
+#SBATCH --cpus-per-task=1
+#SBATCH --mail-type=BEGIN,END,FAIL
+#SBATCH --output=${jobname}-%j.out
+#SBATCH --error=${jobname}-%j.err
+${depend:+#SBATCH --dependency=afterok:${depend}}
 
-# If setup-only mode is enabled, exit before job submission
+module unload gromacs
+module load ${gmx_version}
+
+set -e
+
+gmx grompp -f ${mdpfile} -c ${grofile} -p ${topfile} ${cptfile:+-t $cptfile} -o ${output} -maxwarn 10
+" > "$temp_script"
+
+    chmod +x "$temp_script"
+
+    submit_job "$temp_script"
+    rm -f "$temp_script"
+}
+
+loc=${PWD##*/}
+
+# if we are starting from "em" then we'll also prepare the system.
+# here we need to have the *_GMX.gro, *_GMX.top and *_GMX.itp files from acpype.
+# if you want GAFF-LCFF, run the gaff_lcff.py script BEFORE setup.sh!
+if [[ "$start_from" == "em" ]]; then
+    echo "Setting up molecules and topology..."
+
+    gmx insert-molecules -ci *_GMX.gro -nmol "$nmols" -rot xyz -box "$box" "$box" "$box" -o simubox -try "$try"
+
+    # build topology.top from the acpype GMX topology
+    sed "s/ 1/ ${nmols}/g" *GMX.top > topology.top
+fi
+
 if [ "$setup_only" = true ]; then
     echo "Setup complete. No jobs submitted (setup-only mode)."
     exit 0
 fi
 
-echo "Setup complete. Submitting jobs..."
+# update the target temperatures in MDPs
+sed -i "s/ref-t =.*/ref-t =          $K/" $HOME/gromacs_mdp/MD1.mdp
+sed -i "s/ref-t =.*/ref-t =          $K/" $HOME/gromacs_mdp/efield.mdp
 
-# Submit jobs for energy minimization and equilibration. EM1, EM2 and so on increase the tollerance.
-jid1=$(sbatch --job-name="${loc}GROMPP1" $HOME/gromacs_grompp/GROMPP1.sh | awk '{print $4}')
-jid2=$(sbatch --job-name="${loc}EM1" --dependency=afterok:$jid1 $HOME/gromacs_sh_files/CPU.sh | awk '{print $4}')
+echo "Submitting jobs..."
 
+prev_jid=""
 
-jid3=$(sbatch --job-name="${loc}GROMPP2" --dependency=afterok:$jid2 $HOME/gromacs_grompp/GROMPP2.sh | awk '{print $4}')
-jid4=$(sbatch --job-name="${loc}EM2" --dependency=afterok:$jid3 $HOME/gromacs_sh_files/CPU.sh | awk '{print $4}')
+# --- this section is the energy minimisation jobs --- #
+if [[ "$start_from" == "em" ]]; then
+    # EM1 - GROMPP then CPU
+    generate_and_submit_grompp "$HOME/gromacs_mdp/energymin_1000.mdp" "${loc}_GROMPP1" "simubox.gro" "topology.top" "" "testbox" "$prev_jid"
+    prev_jid=$jid
+    prev_jid=$(sbatch --dependency=afterok:$prev_jid $HOME/gromacs_sh_files/CPU.sh | awk '{print $4}')
 
-jid5=$(sbatch --job-name="${loc}GROMPP3" --dependency=afterok:$jid4 $HOME/gromacs_grompp/GROMPP3.sh | awk '{print $4}')
-jid6=$(sbatch --job-name="${loc}EM3" --dependency=afterok:$jid5 $HOME/gromacs_sh_files/CPU.sh | awk '{print $4}')
+    # EM2 - GROMPP then CPU
+    generate_and_submit_grompp "$HOME/gromacs_mdp/energymin_100.mdp" "${loc}_GROMPP2" "confout.gro" "topology.top" "" "testbox" "$prev_jid"
+    prev_jid=$jid
+    prev_jid=$(sbatch --dependency=afterok:$prev_jid $HOME/gromacs_sh_files/CPU.sh | awk '{print $4}')
 
-jid7=$(sbatch --job-name="${loc}GROMPP4" --dependency=afterok:$jid6 $HOME/gromacs_grompp/GROMPP4.sh | awk '{print $4}')
-jid8=$(sbatch --job-name="${loc}EM4" --dependency=afterok:$jid7 $HOME/gromacs_sh_files/CPU.sh | awk '{print $4}')
+    # EM3 - GROMPP then CPU
+    generate_and_submit_grompp "$HOME/gromacs_mdp/energymin_10.mdp" "${loc}_GROMPP3" "confout.gro" "topology.top" "" "testbox" "$prev_jid"
+    prev_jid=$jid
+    prev_jid=$(sbatch --dependency=afterok:$prev_jid $HOME/gromacs_sh_files/CPU.sh | awk '{print $4}')
 
-# Submit jobs for production run on GPU
-jid9=$(sbatch --job-name="${loc}GROMPP5" --dependency=afterok:$jid8 $HOME/gromacs_grompp/GROMPP5.sh | awk '{print $4}')
-jid10=$(sbatch --job-name="${loc}EQ1" --dependency=afterok:$jid9 $HOME/gromacs_sh_files/GPU_update.sh | awk '{print $4}')
-jid11=$(sbatch --job-name="${loc}GROMPP6" --dependency=afterok:$jid10 $HOME/gromacs_grompp/GROMPP6.sh | awk '{print $4}')
-jid12=$(sbatch --job-name="${loc}EQ2" --dependency=afterok:$jid11 $HOME/gromacs_sh_files/GPU_update.sh | awk '{print $4}')
-
-# Conditionally submit electric field jobs
-if [ "$electric_field" = true ]; then
-    jid13=$(sbatch --job-name="${loc}GROMPPefield" --dependency=afterok:$jid12 $HOME/gromacs_grompp/GROMPPefield.sh | awk '{print $4}')
-    jid14=$(sbatch --job-name="${loc}Efield" --dependency=afterok:$jid13 $HOME/gromacs_sh_files/GPU_update.sh | awk '{print $4}')
-    final_dependency=$jid14  # Ensure MD waits for E-field job completion
-else
-    final_dependency=$jid12  # No E-field, so MD starts after EQ2
+    # EM4 - GROMPP then CPU
+    generate_and_submit_grompp "$HOME/gromacs_mdp/energymin_1.mdp" "${loc}_GROMPP4" "confout.gro" "topology.top" "" "testbox" "$prev_jid"
+    prev_jid=$jid
+    prev_jid=$(sbatch --dependency=afterok:$prev_jid $HOME/gromacs_sh_files/CPU.sh | awk '{print $4}')
 fi
 
-# Submit jobs for production MD run on GPU, depending on whether E-field is enabled
-jid15=$(sbatch --job-name="${loc}GROMPP7" --dependency=afterok:$final_dependency $HOME/gromacs_grompp/GROMPP7.sh | awk '{print $4}')
-jid16=$(sbatch --job-name="${loc}MD1" --dependency=afterok:$jid15 $HOME/gromacs_sh_files/GPU_update.sh | awk '{print $4}')
+# --- this section is equilibration (NVT then NPT) --- #
+if [[ "$start_from" == "em" || "$start_from" == "eq" ]]; then
+    generate_and_submit_grompp "$HOME/gromacs_mdp/equil_nvt.mdp" "${loc}_GROMPP5" "confout.gro" "topology.top" "" "testbox" "$prev_jid"
+    prev_jid=$jid
+    prev_jid=$(sbatch --dependency=afterok:$prev_jid $HOME/gromacs_sh_files/GPU_update.sh | awk '{print $4}')
 
-# Clean up unnecessary files
-rm -f *AC.frcmod *AC.inpcrd *AC.lib *AC.prmtop *CHARMM.inp *CHARMM.prm *CHARMM.rtf *CNS.inp *CNS.par *CNS.top *.pkl
+    generate_and_submit_grompp "$HOME/gromacs_mdp/equil_npt.mdp" "${loc}_GROMPP6" "confout.gro" "topology.top" "state.cpt" "testbox" "$prev_jid"
+    prev_jid=$jid
+    prev_jid=$(sbatch --dependency=afterok:$prev_jid $HOME/gromacs_sh_files/GPU_update.sh | awk '{print $4}')
+fi
+
+# --- this is the electric field part; only triggers if $electric_field = true! --- #
+if [[ "$start_from" == "em" || "$start_from" == "eq" || "$start_from" == "ef" ]]; then
+    if [ "$electric_field" = true ]; then
+        generate_and_submit_grompp "$HOME/gromacs_mdp/efield.mdp" "${loc}_GROMPPefield" "confout.gro" "topology.top" "state.cpt" "testbox" "$prev_jid"
+        prev_jid=$jid
+        prev_jid=$(sbatch --dependency=afterok:$prev_jid $HOME/gromacs_sh_files/GPU_update.sh | awk '{print $4}')
+    fi
+fi
+
+# --- finally, the bit we are here for; production MD simulation --- #
+if [[ "$start_from" == "em" || "$start_from" == "eq" || "$start_from" == "ef" || "$start_from" == "md" ]]; then
+    generate_and_submit_grompp "$HOME/gromacs_mdp/MD1.mdp" "${loc}_GROMPP7" "confout.gro" "topology.top" "state.cpt" "testbox" "$prev_jid"
+    prev_jid=$jid
+    prev_jid=$(sbatch --dependency=afterok:$prev_jid $HOME/gromacs_sh_files/GPU_update.sh | awk '{print $4}')
+fi
+
+echo "All requested jobs submitted successfully."
