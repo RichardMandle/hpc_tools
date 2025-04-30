@@ -45,6 +45,8 @@ This sets up a simulation of 2000 molecules in an initial box of 20 nm^3 with up
 Notes:<br>
 You can edit the .mdp files for additional control over the simulations. By default, we are using anisotropic pressure coupling with a V-rescale thermostat. We offload as much of the computation to L40 GPUs as possible. 
 
+## t_sweep_setup.sh
+Takes a equilibrated .gro file and builds identical production MD simulations with different temperatures in a range given by -tmax and -tmin and -tstep.
 
 # Gaussian Tools
 ## gjf2sge.py
@@ -73,5 +75,17 @@ Creates 24x jobs using the 3x functionals, the 4x default basis sets, both with 
 Using gjf2sge.py we can quickly create a SGE wrapper for the jobsubmission:<br>
 ```python gjf2sge.py -t test_job```
 
+## log_to_gjf.py 
+Reads a Gaussian.log file and produces a new .gjf file with the final geometry in the .log file, i.e. a new job. Arguments:<br><br>
+```-i```: the .log file to work on (e.g. "myfile.log").<br>
+```-cpu```: Number of CPU cores to use (default = 4).<br>
+```-mem```: Ammount of memory to use (in GB; default = 4).<br>
+```-f```: Functional to use (defaults to B3LYP).<br>
+```-b```: Basis set to use (defaults to cc-pVDZ).<br>
+```-ed```: Toggles GD3BJ empirical dispersion on/off (default = off).<br>
+```-chk```: Toggles saving the checkpoint file (default = off). <br>
+```-o```: Output base filename for the generated .gjf files. If not provided, it'll default to that of the input file + ```-new```.<br>
+```-r```: Allows passing a new Gaussian route (defaults to a blank route wit hthe combination of ```-f``` and ```-b```, i.e. a single point.) For example, you might do ```-r "OPT FREQ``` for an OPT+FREQ job.<br>
+```--remove_existing```: Will remove existing .gjf files with the same name as the output (default = on).<br>
 ## pygauss
 A python module with a lot of tools for interacting with Gaussian output and plotting/viewing spectra (https://github.com/RichardMandle/pygauss)
