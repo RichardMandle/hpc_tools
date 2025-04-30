@@ -2,39 +2,39 @@
 # ==============================================================================
 # setup.sh - GROMACS simulation setup script
 #
-# This script builds and submits a sequence of GROMACS simulation jobs:
-# - Energy minimizations
-# - Equilibrations (NVT and NPT)
-# - (Optional) Electric field biasing
-# - Production MD
+# this script builds and submits a sequence of GROMACS simulation jobs:
+# - energu minimizations
+# - equilibration  (NVT and then NPT)
+# - (Optional) electric field biasing
+# - the actual production MD
 #
 # USAGE EXAMPLES:
 #
-# 1. Full fresh simulation starting from molecule insertion:
+# 1. simulation starting from molecule insertion:
 #    bash setup.sh -n 400 -b 8 -t 100 -k 400 -v gromacs/2024.4
 #
-# 2. Setup molecules and topology only, without submitting any jobs:
+# 2. setup molecules and topology only, without submitting any jobs (-s flag):
 #    bash setup.sh -n 400 -b 8 -t 100 -k 400 -v gromacs/2024.4 -s
 #
-# 3. Resume from equilibration stage only (skip energy minimization):
+# 3. resume from equilibration stage only (skip energy minimization... need to test this):
 #    bash setup.sh -f eq
 #
-# 4. Resume from electric field biasing stage (after equilibrations):
+# 4. continue with electric field biasing stage (after equilibrations... need to test this):
 #    bash setup.sh -f ef -e
 #
-# 5. Resume from production MD stage only (no e-field or equilibration):
+# 5. Resume from production MD stage only (no e-field or equilibration... need to test this):
 #    bash setup.sh -f md
 #
 # FLAG OPTIONS:
 #
-# -n   Number of molecules to insert
-# -b   Box size (nm)
-# -t   Number of insertion attempts
-# -k   Target temperature (K)
-# -v   GROMACS module version (default: "gromacs")
-# -e   Enable electric field bias
-# -s   Setup only (no job submission)
-# -f   Start from stage: em (minimization), eq (equilibration), ef (efield), md (production MD)
+# -n   number of molecules to insert
+# -b   box size (nm)
+# -t   number of insertion attempts 
+# -k   simulation temperature (K)
+# -v   GROMACS module version (default: "gromacs"; make sure you have a GPU version)
+# -e   enable electric field bias
+# -s   setup only (no job submission)
+# -f   start from stage: em (minimization), eq (equilibration), ef (efield), md (production MD)
 #
 # Author - Dr. R. Mandle, UoL, 2024/5
 # ==============================================================================
@@ -93,7 +93,6 @@ fi
 echo "Using GROMACS version: $gmx_version"
 echo "Starting from stage: $start_from"
 
-# load the gromacs module
 module unload gromacs
 module load $gmx_version
 
