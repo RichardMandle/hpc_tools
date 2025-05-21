@@ -69,10 +69,10 @@ def generate_gjf_files(args):
     ed_options = [False, True] if args.ed else [False]
     sol_options = ([None] + args.solvation_model) if args.sol else [None]
     
-    # Determine the base name for output files.
+    # get the base name for output files.
     base = args.output  # already set via -o or defaulted in main()
     
-    # If requested, remove existing .gjf files matching the output pattern.
+    # remove existing .gjf files matching the output pattern if requested
     if args.remove_existing:
         pattern = base + "_*.gjf"
         existing_files = glob.glob(pattern)
@@ -83,16 +83,16 @@ def generate_gjf_files(args):
     generated_files = []
     file_counter = 1  # Sequential numbering
 
-    for func, basis, ed_flag, sol_model in itertools.product(args.functionals, args.basis, ed_options, sol_options):
-        # Build the OPT job route line.
+    for func, basis, ed_flag, sol_model, nstates in itertools.product(args.functionals, args.basis, ed_options, sol_options, args.ns):
+        # build the OPT job route line.
         route_opt = f"# {func}/{basis} opt"
         if ed_flag:
             route_opt += " EmpiricalDispersion=gd3bj"
         if sol_model is not None:
             route_opt += f" {sol_model}"
         
-        # Build the TD-SCF job route line.
-        route_td = f"# TD(NStates={args.ns}) {func}/{basis}"
+        # build the TD-SCF job route line.
+        route_td = f"# TD(NStates={nstates}) {func}/{basis}"
         if ed_flag:
             route_td += " EmpiricalDispersion=gd3bj"
         if sol_model is not None:
@@ -104,7 +104,7 @@ def generate_gjf_files(args):
         file_counter += 1
         
         with open(gjf_filename, 'w') as gjf_file:
-            # Write the OPT job section.S
+            # write the OPT job section
             gjf_file.write(f"%chk={chk_filename}\n")
             gjf_file.write(f"%mem={args.mem}GB\n")
             gjf_file.write(f"%nprocshared={args.cpu}\n")
@@ -116,12 +116,12 @@ def generate_gjf_files(args):
                 gjf_file.write(f"{element}    {x}    {y}    {z}\n")
             gjf_file.write("\n")
             
-            # Write the chained TD-SCF job section.
+            # write the chained TD-SCF job section.
             gjf_file.write("--Link1--\n")
-            gjf_file.write(f"%OldChk={chk_filename}\n")
+            # gjf_file.write(f"%OldChk={chk_filename}\n") # this seems to break the LINK1 with "Illiegal MolTyp in RwMol1"; commenting out
             gjf_file.write(f"%Chk={chk_filename}\n")
             gjf_file.write(f"{route_td}\n\n")
-            gjf_file.write(f"Title Card: TD-SCF job based on OPT geometry from {args.input}\n\n")
+            gjf_file.write(f"Title Card: Linked TD-SCF job generated from {args.input}\n\n")
             gjf_file.write("0 1\n")
         
         print(f"Generated {gjf_filename}")
@@ -133,7 +133,7 @@ def main():
         description="Generate Gaussian .gjf input files (with chained OPT and TD-SCF jobs) "
                     "from a .log file and create a SLURM job array submission script."
     )
-    # Gaussian input generation options.
+    # gaussian input generation options.
     parser.add_argument('-i', '--input', required=True, type=str, help="Input Gaussian log file (.log)")
     parser.add_argument('-cpu', type=int, default=4, help="Number of CPU cores (default: 4)")
     parser.add_argument('-mem', type=str, default="4GB", help="Memory (default: 4GB)")
@@ -142,7 +142,7 @@ def main():
     parser.add_argument('-b', '--basis', type=str, nargs='+', default=["6-31g(d)", "cc-pvdz", "aug-cc-pvdz", "cc-pvtz"],
                         help="List of basis sets (default: 6-31g(d) cc-pvtz)")
     parser.add_argument('-ed', action='store_true', help="Toggle empirical dispersion (gd3bj) on/off")
-    parser.add_argument('-ns', type=int, default=10, help="Number of states for TD-SCF (default: 10)")
+    parser.add_argument('-ns', type=int, help="Number of states for TD-SCF (default: 10)", default =[1,5,10,15,20,25,30,35,40])
     parser.add_argument('-sol', action='store_true', help="Toggle solvation model usage on/off")
     parser.add_argument('--solvation_model', type=str, nargs='+',
                         default=["scfr=(scipcm,solvent=methanol)"],
