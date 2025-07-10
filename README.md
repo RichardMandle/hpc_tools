@@ -48,7 +48,26 @@ You can edit the .mdp files for additional control over the simulations. By defa
 ## t_sweep_setup.sh
 Takes a equilibrated .gro file and builds identical production MD simulations with different temperatures in a range given by -tmax and -tmin and -tstep.
 
-# Gaussian Tools
+# DFT / Electronic Structure Tools
+### ORCA
+## gau2orca.py
+Make a working orca .inp file from a gaussian .gjf file. Works OK for simple things (tested with opt, freq, goat). You can specify a few things:<br>
+        -i = input file (.gjf)
+        -o = output file (.inp)
+        -m = method (uses gaussain one by default, removing things that wont work, but you can pass anything you like (e.g. "goat gf2n-xtb", "opt freq am1" etc)
+        -cpu = number of cpu cores to use (note this means ORCA will want the full path to the binary I think, so probably wont work as you intend)
+        -mem = ammount of ram, specify units (e.g. -mem 4GB not -mem 4)
+        -all = do all files in a directory (if -i is a directory, like ./gaussian_inputs or something)
+        -sge = write a sge submission script (if you want SLURM you can use orca2slurm.py, below)
+
+Example usage:
+``` python gau2orca.py -i myfile.gjf -o my_orca_file.inp -cpu 1 -mem 2GB -m "opt freq gfn2-xtb" ```
+
+## orca2slurm.py
+Inspect an orca .inp file and construct an appropriate .sh file for submission of the job to the slurm queue. Just pass the file name:<br>
+``` python orca2slurm.py my_orca_file.inp ```
+        
+### Gaussian
 ## gjf2sge.py
 Make a SGE job submission file (.sh) from a Gaussian input file. Can work with single files or multiple (task arrays). Reads job dependency and requests apropriate resource from the HPC queue. Arguments:<br>-i input.gjf file.<br>-t input - creates a task array .sh file for all .gjf files named "input"; e.g. "input_1.gjf, input_2.gjf, ... input_n.gjf". Note, task array creation hasn't been thoroughly tested.
 
