@@ -2,6 +2,33 @@
 import sys
 import os
 import re
+import shutil
+import subprocess
+
+'''
+small script that reads an orca .inp file and produces an appropriate
+.slurm file for submission to the queue.
+
+does a few things to achieve this:
+1) reads the orca input file to determine # cores, RAM etc
+2) gets the full path to ORCA (needed for parallel runs)
+3) loads openmpi etc
+
+limited testing; email r<dot>mandle<at>leeds<dot>ac<dot>uk with any problems/errors
+'''
+
+
+def get_full_orca_path():
+    '''
+    If we haven't already done module load orca in the terminal, then we'll get a duff
+    path for orca and it wont work (for parallel runs)...
+    '''
+    cmd = "bash -c 'module load orca && which orca'"
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if result.returncode == 0:
+        return result.stdout.strip()
+    else:
+        return None
 
 def parse_orca_input(inp_file):
     '''
@@ -34,23 +61,34 @@ def parse_orca_input(inp_file):
 def write_slurm_script(inp_file):
     job_name, nprocs, mem_gb = parse_orca_input(inp_file)
     slurm_file = inp_file.replace(".inp", ".slurm")
-
+    print(f"\nJob Name: {job_name}\nCpu cores: {nprocs}\nMemory: {mem_gb}")
+    # so if we have more than one cpu core, we need to call the full orca path, which we'll do with shutil and "which orca":
+    if nprocs > 1:
+        orca_path = get_full_orca_path()
+        print(f"ORCA path: {orca_path}")
+        if orca_path is None:
+            print("***Warning***: Could not find ORCA with `which orca`. Using fallback 'orca', which will probably fail.")
+            orca_path = "orca"
+    else:
+        orca_path = "orca"
+        
     with open(slurm_file, 'w') as f:
         f.write(f"""#!/bin/bash
 #SBATCH --job-name={job_name}
 #SBATCH --output={job_name}.out
 #SBATCH --error={job_name}.err
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task={nprocs}
+#SBATCH --ntasks={nprocs}
+#SBATCH --cpus-per-task=1
 #SBATCH --mem={mem_gb}G
 #SBATCH --time=2-00:00:00
 
+module add openmpi 
 module load orca
 
-orca {inp_file}
+{orca_path} {inp_file}
 """)
 
-    print(f"SLURM script for {inp_file} was written to: {slurm_file}")
+    print(f"SLURM script for {inp_file} was written to: {slurm_file}\n")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2 or not sys.argv[1].endswith(".inp"):
