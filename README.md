@@ -64,6 +64,7 @@ Make a working orca .inp file from a gaussian .gjf file. Works OK for simple thi
 
 Example usage:
 ``` python gau2orca.py -i myfile.gjf -o my_orca_file.inp -cpu 1 -mem 2GB -m "opt freq gfn2-xtb" ```
+``` python gau2orca.py -i dioxane.gjf -o dioxpes.inp -n diox_pes -m "gfn2-xtb neb-ts freq" -b "%neb neb_end_xyzfile \"dioxane_ax_trans\" end" -cpu 4 -mem 4 ```
 
 ## orca2slurm.py
 Inspect an orca .inp file and construct an appropriate .sh file for submission of the job to the slurm queue. Just pass the file name:<br>
