@@ -54,7 +54,9 @@ Takes a equilibrated .gro file and builds identical production MD simulations wi
 Make a working orca .inp file from a gaussian .gjf file. Works OK for simple things (tested with opt, freq, goat). You can specify a few things:<br>
         -i = input file (.gjf)
         -o = output file (.inp)
+        -n = name of job file to use (defaults to same as gjf, or, if not present, "ORCA JOB")
         -m = method (uses gaussain one by default, removing things that wont work, but you can pass anything you like (e.g. "goat gf2n-xtb", "opt freq am1" etc)
+        -b = pass a custom block; e.g. you might do -b "%DOCKER GUEST \"dioxane.xyz\" end" to run a docker calculation, or -b "%tddft, NRoots 50, maxdim 20, tda true, end" to do a TD calculation
         -cpu = number of cpu cores to use (note this means ORCA will want the full path to the binary I think, so probably wont work as you intend)
         -mem = ammount of ram, specify units (e.g. -mem 4GB not -mem 4)
         -all = do all files in a directory (if -i is a directory, like ./gaussian_inputs or something)
@@ -66,6 +68,16 @@ Example usage:
 ## orca2slurm.py
 Inspect an orca .inp file and construct an appropriate .sh file for submission of the job to the slurm queue. Just pass the file name:<br>
 ``` python orca2slurm.py my_orca_file.inp ```
+
+### orca_td_spectra.py
+Plot a absorbtion spectrum from a TD calculation by putting a lineshape over each oscilator with the specified fwhm and height equal to strength. Pass the file name (e.g. my_file.out) and the following flags:<br>
+        -fwhm = FWHM in eV for lineshape broadening
+        -shape = choose the lineshape to use in peak synthesis (gaussian of lorentzian)
+        -xunit = units of x-axis, either eV or wavelength (nm)
+        -xlim = the limits of the x-axis
+        -pltosc = if called, plot the individual oscilators as a bar on the spectrum
+        -save = save the plot as an image file of some sort.
+``` python orca_td_spectrum.py my_output_file.out -fwhm 20 -xunit eV -pltosc ```
         
 ### Gaussian
 ## gjf2sge.py
