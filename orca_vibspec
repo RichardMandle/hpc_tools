@@ -1,0 +1,181 @@
+import numpy as np
+import re
+import sys
+import matplotlib.pyplot as plt
+
+'''
+orca_vibspec.py - plot vibrational spectra
+'''
+
+def parse_spectrum_file(filename):
+
+    energylist = []
+    intenslist = []
+    found_vib_section = False
+
+    try:
+        with open(filename, "r") as input_file:
+            for line in input_file:
+                if line.strip().startswith('$vibrational spectrum'):
+                    found_vib_section = True
+                    break
+
+            if not found_vib_section:
+                raise ValueError("No vibrational spectrum block found in file.")
+
+            for _ in range(2): next(input_file)
+
+            for line in input_file:
+                if line.strip().startswith('$end'):
+                    break
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+
+                parts = line.split()
+                try:
+                    if len(parts) == 5:
+                        _, _, wavenum, intensity, _ = parts
+                    elif len(parts) == 4:
+                        _, wavenum, intensity, _ = parts
+                    else:
+                        continue
+
+                    wn = float(wavenum)
+                    inten = float(intensity)
+                    energylist.append(wn)
+                    intenslist.append(inten)
+
+                except ValueError:
+                    continue
+
+        return np.array(list(zip(energylist, intenslist)))
+
+    except IOError:
+        print(f"'{filename}' not found")
+        sys.exit(1)
+
+# these microfunctions just return a lineshape for peak synthesis (do we need more?)
+def gaussian(x, mu, fwhm):
+    sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+    return np.exp(-0.5 * ((x - mu) / sigma) ** 2)
+
+def lorentzian(x, mu, fwhm):
+    gamma = fwhm / 2
+    return 1 / (1 + ((x - mu) / gamma) ** 2)
+
+# spectrum synthesis logic
+def build_spectrum(excitations, fwhm=10, shape='gaussian', xunit='cm-1', start=0, end=4000, pts=2500):
+
+    x_cm1 = np.linspace(start, end, pts)
+    y = np.zeros_like(x_cm1)
+
+    for wn, strength in excitations:
+        if shape == 'gaussian':
+            y += strength * gaussian(x_cm1, wn, fwhm)
+        elif shape == 'lorentzian':
+            y += strength * lorentzian(x_cm1, wn, fwhm)
+        else:
+            raise ValueError("Invalid lineshape")
+
+    # we can use other x-axis unit if requested
+    if xunit == 'eV':
+        x_eV = x_cm1 / 8065.54
+        return x_eV, y
+    elif xunit == 'nm':
+        x_nm = 1239.84 / (x_cm1 / 8065.54)
+        return x_nm[::-1], y[::-1]
+    else:
+        return x_cm1, y
+
+# plotter borrowed from uv plotter
+def super_basic_plotter(args, x_data, y_data, x_label, y_label,
+    shape=None, xunit='cm-1', yunit='intensity / arb',
+    color='r', xlim=None, ylim=None, dpi=100, figsize=(5, 3),
+    title=None, legend=None, saveas=None, show=True):
+
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    ax.plot(x_data, y_data, color=color, label=legend)
+
+    plt.xlabel(f"{x_label} ({xunit})" if xunit else x_label)
+    plt.ylabel(f"{y_label} ({yunit})" if yunit else y_label)
+
+    if title:
+        plt.title(title)
+        
+    if xlim:
+        plt.xlim(xlim[::-1] if xunit == 'nm' else xlim)
+        
+    if ylim:
+        plt.ylim(ylim)
+        
+    if legend:
+        plt.legend()
+    
+    if args.xflip:
+        ax.invert_xaxis()
+    if args.yflip:
+        ax.invert_yaxis()
+        
+    plt.grid(True)
+    plt.tight_layout()
+
+    if saveas:
+        plt.savefig(saveas, dpi=dpi)
+        print(f"Saved plot to: {saveas}")
+    if show:
+        plt.show()
+        
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Plot ORCA IR spectrum from .vibspectrum file")
+    parser.add_argument("input", help="Path to ORCA .vibspectrum file")
+    parser.add_argument("--fwhm", type=float, default=30, help="FWHM in cm-1 for lineshape broadening")
+    parser.add_argument("--shape", choices=["gaussian", "lorentzian"], default="gaussian", help="Lineshape function")
+    parser.add_argument("--xunit", choices=["cm-1", "eV", "nm"], default="cm-1", help="X-axis unit")
+    parser.add_argument("--xlim", nargs=2, type=float, help="X-axis limits")
+    parser.add_argument("--xflip", action='store_true', help="Flip X axis (low to high)")
+    parser.add_argument("--yflip", action='store_true', help="Flip Y axis (low to high)")
+    parser.add_argument("--save", help="Save plot to file (e.g. spectrum.png)")
+
+    args = parser.parse_args()
+
+    try:
+        excitations = parse_spectrum_file(args.input)
+    except Exception as e:
+        print(f"***ERROR***\n{e}\n")
+        exit(1)
+
+    x_plot, spectrum = build_spectrum(
+        excitations,
+        fwhm=args.fwhm,
+        shape=args.shape,
+        xunit=args.xunit
+    )
+    spectrum = spectrum / np.max(spectrum)
+      
+    x_label = {
+        "cm-1": "Wavenumber",
+        "eV": "Energy",
+        "nm": "Wavelength"
+    }.get(args.xunit, "X")
+
+    super_basic_plotter(
+        args,
+        x_plot,
+        spectrum,
+        x_label=x_label,
+        y_label="Absorption",
+        xunit=args.xunit,
+        yunit="a.u.",
+        color='blue',
+        xlim=args.xlim,
+        title="Simulated IR Spectrum",
+        saveas=args.save,
+        show=not args.save
+    )
+
+
+if __name__ == "__main__":
+    main()
