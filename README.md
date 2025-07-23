@@ -67,7 +67,7 @@ Example usage:
 ``` python gau2orca.py -i dioxane.gjf -o dioxpes.inp -n diox_pes -m "gfn2-xtb neb-ts freq" -b "%neb neb_end_xyzfile \"dioxane_ax_trans\" end" -cpu 4 -mem 4 ```
 
 ## xyz2orca
-Take an xyz file(s) and create apropriate input files for ORCA (*.inp):
+Take an xyz file(s) and create apropriate input files for ORCA (*.inp):<br>
         -i = input file (.xyz)
         -o = output file (.inp)
         -n = name of job file to use (defaults to same as xyz, or, if not present, "ORCA JOB")
@@ -82,15 +82,19 @@ Example usage:
 ``` python xyz2orca.py -all -i coords/ -cpu 4 -mem 4GB -m "OPT FREQ r2SCAN-3C TightOpt TightSCF FREQ"```
 
 ## goat2orca
-Take the output of a GOAT calculation in ORCA and extract the individual geometries to new xyz files based on specified energy cutoffs:
+Take the output of a GOAT calculation in ORCA and extract the individual geometries to new xyz files based on specified energy cutoffs:<br>
         -x = input file (.xyz) - final ensemble .xyz 
         -o = output file (.out) - GOAT output file
         -e = energy threshold to use (kcal mol)
-        -w = write filtered xyz files to this path
+        -w = write filtered xyz files to this path (folder)
+
+Example usage:
+``` python goat2orca -o diox.out -x diox.finalensemble.xyz -e 4 -w confs ```
         
 ## orca2slurm.py
 Inspect an orca .inp file and construct an appropriate .sh file for submission of the job to the slurm queue. Just pass the file name:<br>
-``` python orca2slurm.py my_orca_file.inp ```
+``` python orca2slurm.py my_orca_file.inp ```<br>
+And it returns a .slurm file that you can submit to the job queue.
 
 ### orca_td_spectra.py
 Plot a absorbtion spectrum from a TD calculation by putting a lineshape over each oscilator with the specified fwhm and height equal to strength. Pass the file name (e.g. my_file.out) and the following flags:<br>
@@ -100,6 +104,8 @@ Plot a absorbtion spectrum from a TD calculation by putting a lineshape over eac
         -xlim = the limits of the x-axis
         -pltosc = if called, plot the individual oscilators as a bar on the spectrum
         -save = save the plot as an image file of some sort.
+
+Example usage:<br>
 ``` python orca_td_spectrum.py my_output_file.out -fwhm 20 -xunit eV -pltosc ```
         
 ### Gaussian
