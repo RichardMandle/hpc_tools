@@ -66,6 +66,28 @@ Example usage:
 ``` python gau2orca.py -i myfile.gjf -o my_orca_file.inp -cpu 1 -mem 2GB -m "opt freq gfn2-xtb" ```
 ``` python gau2orca.py -i dioxane.gjf -o dioxpes.inp -n diox_pes -m "gfn2-xtb neb-ts freq" -b "%neb neb_end_xyzfile \"dioxane_ax_trans\" end" -cpu 4 -mem 4 ```
 
+## xyz2orca
+Take an xyz file(s) and create apropriate input files for ORCA (*.inp):
+        -i = input file (.xyz)
+        -o = output file (.inp)
+        -n = name of job file to use (defaults to same as xyz, or, if not present, "ORCA JOB")
+        -m = method to use (defaults to "GF2N-xTB")
+        -b = pass a custom block; e.g. you might do -b "%DOCKER GUEST \"dioxane.xyz\" end" to run a docker calculation, or -b "%tddft, NRoots 50, maxdim 20, tda true, end" to do a TD calculation
+        -cpu = number of cpu cores to use (defaults to 4)
+        -mem = ammount of ram, specify units(dfaults to 4GB)
+        -all = do all files in a directory (if -i is a directory, like ./gaussian_inputs or something)
+
+Example usage:
+``` python xyz2orca.py -i my_coords.xy -o my_coords.inp -cpu 2 -mem 2GB -m "OPT PM3" ```
+``` python xyz2orca.py -all -i coords/ -cpu 4 -mem 4GB -m "OPT FREQ r2SCAN-3C TightOpt TightSCF FREQ"```
+
+## goat2orca
+Take the output of a GOAT calculation in ORCA and extract the individual geometries to new xyz files based on specified energy cutoffs:
+        -x = input file (.xyz) - final ensemble .xyz 
+        -o = output file (.out) - GOAT output file
+        -e = energy threshold to use (kcal mol)
+        -w = write filtered xyz files to this path
+        
 ## orca2slurm.py
 Inspect an orca .inp file and construct an appropriate .sh file for submission of the job to the slurm queue. Just pass the file name:<br>
 ``` python orca2slurm.py my_orca_file.inp ```
