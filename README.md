@@ -112,7 +112,7 @@ Example usage:<br>
 ## gjf2sge.py
 Make a SGE job submission file (.sh) from a Gaussian input file. Can work with single files or multiple (task arrays). Reads job dependency and requests apropriate resource from the HPC queue. Arguments:<br>-i input.gjf file.<br>-t input - creates a task array .sh file for all .gjf files named "input"; e.g. "input_1.gjf, input_2.gjf, ... input_n.gjf". Note, task array creation hasn't been thoroughly tested. Basically a legacy tool.
 
-##gjf2slurm.py
+## gjf2slurm.py
 Make a SLURM job submissions script from a Gaussian input file. Can work with single files or multiple (task arrays). Reads job dependency and requests apropriate resource from the HPC queue. Arguments:<br><br>
 ```t```: rather than passing a single file name, give the prefix for an array: e.g. "-t "my_job_""; greates a task array instead.<br><br>
 Example:<br><br>
