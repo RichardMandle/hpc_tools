@@ -110,11 +110,26 @@ Example usage:<br>
         
 ### Gaussian
 ## gjf2sge.py
-Make a SGE job submission file (.sh) from a Gaussian input file. Can work with single files or multiple (task arrays). Reads job dependency and requests apropriate resource from the HPC queue. Arguments:<br>-i input.gjf file.<br>-t input - creates a task array .sh file for all .gjf files named "input"; e.g. "input_1.gjf, input_2.gjf, ... input_n.gjf". Note, task array creation hasn't been thoroughly tested.
+Make a SGE job submission file (.sh) from a Gaussian input file. Can work with single files or multiple (task arrays). Reads job dependency and requests apropriate resource from the HPC queue. Arguments:<br>-i input.gjf file.<br>-t input - creates a task array .sh file for all .gjf files named "input"; e.g. "input_1.gjf, input_2.gjf, ... input_n.gjf". Note, task array creation hasn't been thoroughly tested. Basically a legacy tool.
 
-## gjf2slurm.py
-Make a SLURM job submission file (.sh) from a Gaussian input script. Arguments:<br>-i input.gjf file.
+##gjf2slurm.py
+Make a SLURM job submissions script from a Gaussian input file. Can work with single files or multiple (task arrays). Reads job dependency and requests apropriate resource from the HPC queue. Arguments:<br><br>
+```t```: rather than passing a single file name, give the prefix for an array: e.g. "-t "my_job_""; greates a task array instead.<br><br>
+Example:<br><br>
+```python gjf2slurm.py rm734_bpes_1.gjf``` - creates a file for submitting ```rm734_bpes_1.gjf``` to the queue
+```python gjf2slurm.py -t rm734_bpes_``` - creates a _task array_ for submitting all jobs with the prefix ```rm734_bipes_``` to the queue (e.g. rm734_bpes_1.gjf, ..._2.gjf, ..._n.gjf etc.<br><br>
 
+## xyz2gjf
+Take an xyz file(s) and create apropriate input files for Gaussian (*.gjf):<br>
+        ```-i```: input file (.xyz)<br>
+        ```-o```: output file (.gjf)<br>
+        ```-n```: name of job file to use (defaults to same as xyz, or, if not present, "Gaussian Job")<br>
+        ```-m```:method to use (defaults to "B3LYP/def2_SVP")<br>
+        ```-cpu```: number of cpu cores to use (defaults to 4)<br>
+        ```-mem```: ammount of ram, specify units(dfaults to 4GB)<br>
+        ```-all```: do all files in a directory (if -i is a directory, like ./gaussian_inputs or something)<br>
+
+        
 ## tdscf_screen.py
 Reads a Gaussian .log file (given by -```-i```) and creates an array of follow-on jobs designed to explore different combinations of functional, basis set, dispersion correction, solvation, no. of states for the TD job etc. Initially performs OPT at the stated level, followed by a single point TD-SCF calculation. Arguments:<br><br>
 ```-cpu```: Number of CPU cores to use.<br>
