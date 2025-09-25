@@ -50,21 +50,44 @@ Takes a equilibrated .gro file and builds identical production MD simulations wi
 
 # DFT / Electronic Structure Tools
 ### ORCA
+## smi2xyz.py
+Nice tool for making a "starting point" .xyz file for further calculation. Takes the input smiles string, either at the command line or in a file, and uses rdkit to generate 3D coordinates and does a quick optimisation using the MMFF method. Has a few options:<br>
+        ```-i```: Expects you to pass the smiles string in the command line after this flag, e.g. ```...-i "c1ccccc1"```<br>
+        ```-f```: Expects the smiles strings to be passed as a file, e.g. ```...-f "thats_a_lot_of_smiles.txt"```<br>
+        ```-o```: The output file name (if using -i) or prefix (if using -f), e.g. ```-o myfile.xyz``` or ```-o cpd_```<br>
+        ```-n```: The number of conformers to screen (int, default = 50)<br>
+        ```--rms```: The RMSD pruning threshold in angstroms (float, default = 0.5)<br>
+        ```--seed```: Random seed, just in case (int, default = 1)<br>
+        ```--embed```: Conformer embedding method, choose from ETKDG, ETKDGv2 or ETKDGv3 (default)<br>
+        ```--opt```: Select optimisation force-field, choose from UFF or MMFF (defualt)<br>
+        ```--e_thresh```: Energy threshold for rejecting conformers; given that we only return the minimum this doesn't actually do much, but its more of a future proofing move.<br>
+        ```--max_iter```: Maximum iterations in the optimiser cycle (int, default = 200)<br>
+        ```--name```: Optional name/comment ot include in the xyz title (for single input, -i, only!)<br>
+
+<br><br>
+Examples:<br>
+```python smi2xyz.py -i "CCCC0COC(c1cc(F)c(F)c(F)c1)OC0" -o "DU-3-F"```<br>
+```python smi2xyz.py -i "CCCC0COC(c1cc(F)c(C(=O)Oc2cc(F)c(c3cc(F)c(F)c(F)c3)cc2)c(F)c1)OC0" -o "DUZGU-3-F" --embed ETKDG --opt UFF```<br>
+```python smi2xyz.py -f "smbf_list.txt" -o smbf_cpd_ ```<br>
+
+Workflow Exmaples:<br>
+write smiles to xyz files -> conformer search with GOAT at GFN2-XTB -> Reoptimise minima at r2scan-3c -> property calculation
+
 ## gau2orca.py
 Make a working orca .inp file from a gaussian .gjf file. Works OK for simple things (tested with opt, freq, goat). You can specify a few things:<br>
-        ```-i```: input file (.gjf)
-        ```-o```: output file (.inp)
-        ```-n```: name of job file to use (defaults to same as gjf, or, if not present, "ORCA JOB")
-        ```-m```: method (uses gaussain one by default, removing things that wont work, but you can pass anything you like (e.g. "goat gf2n-xtb", "opt freq am1" etc)
-        ```-b```: pass a custom block; e.g. you might do -b "%DOCKER GUEST \"dioxane.xyz\" end" to run a docker calculation, or -b "%tddft, NRoots 50, maxdim 20, tda true, end" to do a TD calculation
-        ```-cpu```: number of cpu cores to use (note this means ORCA will want the full path to the binary I think, so probably wont work as you intend)
-        ```-mem```: ammount of ram, specify units (e.g. -mem 4GB not -mem 4)
-        ```-all```: do all files in a directory (if -i is a directory, like ./gaussian_inputs or something)
-        ```-sge```: write a sge submission script (if you want SLURM you can use orca2slurm.py, below)
-
-Example usage:
-``` python gau2orca.py -i myfile.gjf -o my_orca_file.inp -cpu 1 -mem 2GB -m "opt freq gfn2-xtb" ```
-``` python gau2orca.py -i dioxane.gjf -o dioxpes.inp -n diox_pes -m "gfn2-xtb neb-ts freq" -b "%neb neb_end_xyzfile \"dioxane_ax_trans\" end" -cpu 4 -mem 4 ```
+        ```-i```: input file (.gjf)<br>
+        ```-o```: output file (.inp)<br>
+        ```-n```: name of job file to use (defaults to same as gjf, or, if not present, "ORCA JOB")<br>
+        ```-m```: method (uses gaussain one by default, removing things that wont work, but you can pass anything you like (e.g. "goat gf2n-xtb", "opt freq am1" etc)<br>
+        ```-b```: pass a custom block; e.g. you might do -b "%DOCKER GUEST \"dioxane.xyz\" end" to run a docker calculation, or -b "%tddft, NRoots 50, maxdim 20, tda true, end" to do a TD calculation<br>
+        ```-cpu```: number of cpu cores to use (note this means ORCA will want the full path to the binary I think, so probably wont work as you intend)<br>
+        ```-mem```: ammount of ram, specify units (e.g. -mem 4GB not -mem 4)<br>
+        ```-all```: do all files in a directory (if -i is a directory, like ./gaussian_inputs or something)<br>
+        ```-sge```: write a sge submission script (if you want SLURM you can use orca2slurm.py, below)<br>
+<br><br>
+Example usage:<br>
+``` python gau2orca.py -i myfile.gjf -o my_orca_file.inp -cpu 1 -mem 2GB -m "opt freq gfn2-xtb" ```<br>
+``` python gau2orca.py -i dioxane.gjf -o dioxpes.inp -n diox_pes -m "gfn2-xtb neb-ts freq" -b "%neb neb_end_xyzfile \"dioxane_ax_trans\" end" -cpu 4 -mem 4 ```<br>
 
 ## xyz2orca
 Take an xyz file(s) and create apropriate input files for ORCA (*.inp):<br>
