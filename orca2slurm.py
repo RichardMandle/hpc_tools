@@ -14,6 +14,58 @@ Supports:
   - array mode (prefix -> many .inp -> one array .slurm)
 """
 
+
+def working_path_block(inp_file, xyz_file = None, storage='TMP_LOCAL',):
+    '''
+    Function for setting the working directory to be used
+    
+    xyz_file isn't passed explicitly (yet)
+    
+    Let the user pick between fastest (TMP_LOCAL; on node NVME), fast-ish (TMP_SHARED; lustre-NVME), or slow (SCRATCH; lustre-disk)
+    '''
+    storage = storage.strip('$').upper() # strip out dollar signs incase they are included; but do it quietly; change to CAPS
+    
+    # check the user is using a sensible place for storage, and if not default to NVME flash on node ($TMP_LOCAL).
+    possible_storage = ['TMP_LOCAL','TMP_SHARED','SCRATCH']
+    if storage not in possible_storage:
+        print(f"You selected storage as {storage}, but it should only be one of {possible_storage}")
+        print(f"Defaulting to TMP_LOCAL")
+        storage="TMP_LOCAL"
+        
+    job_name = os.path.splitext(os.path.basename(inp_file))[0]
+    if not xyz_file:
+        xyz_file = f"{job_name}.xyz"
+        
+    text = f"""
+cp {inp_file} ${storage}/{inp_file} 
+cp {xyz_file} ${storage}/{xyz_file}
+cd ${storage}
+
+working_dir=pwd
+    """
+    if storage == 'SCRATCH':
+        '''
+        This isn't optimal, but if they ask for it we shouldn't stop them.
+        '''
+        text =f"working_dir=pwd"
+    
+    return text, storage
+    
+def return_job(storage):
+    '''
+    we'll copy run files onto our scratch path and then, once the job is finsihed, copy back stuff we care about.
+    
+    we'll delete *.tmp* anyway. 
+    
+    '''
+    
+    text = f"""
+rm *.tmp*
+cp ${storage}/* $working_dir
+rm -rf ${storage}
+    """
+    return text
+
 def get_full_orca_path():
     """
     if we haven't already done 'module load orca' in the terminal, then we'll get a duff
@@ -56,23 +108,30 @@ def parse_orca_input(inp_file):
 
     return job_name, nprocs, mem_total_gb
 
+def make_safe_cleanup(job_name):
+    # delete ONLY files belonging to this job_name
+    exts = ["gbw", "tmp", "densities", "engrad", "ges", "bibtex", "hess"]
+    parts = [f'"{job_name}.{ext}"' for ext in exts]
+    parts.append(f'"{job_name}"_tmp.*')
+    parts.append(f'"{job_name}".finalensemble.globaliter.*.xyz')  # optional, if you want
+    return "rm -f " + " ".join(parts)
 
-def write_slurm_single(inp_file, walltime="48:00:00", clean_orca=False):
+def write_slurm_single(inp_file, walltime="48:00:00", clean_orca=False, xyz_file = None, storage = None):
     """
     Single-job mode: one .inp -> one .slurm
     """
     # patterns of temporary files to remove at the end if requested
     # check a few outputs over the next few months and add/remove.
-    tmp_patterns = ["*.gbw", "*.tmp", "*.densities", "*.engrad", "*.ges", "*_tmp.*"]
-
+    
+    job_name, nprocs, mem_gb = parse_orca_input(inp_file)
+    
     if clean_orca:
-        closing_remarks = "rm -f " + " ".join(tmp_patterns)
+        closing_remarks = make_safe_cleanup(job_name)
     else:
         closing_remarks = ""
-
-    job_name, nprocs, mem_gb = parse_orca_input(inp_file)
+    
     slurm_file = inp_file.replace(".inp", ".slurm")
-    print(f"\n[Single] Job Name: {job_name}\nCpu cores: {nprocs}\nMemory: {mem_gb} GB")
+    print(f"\n[Single] Job: {job_name}; CPUs: {nprocs}; RAM: {mem_gb} GB; Scratch: {args.storage}")
 
     # If we have more than one cpu core, we need the full orca path (module-loaded)
     if nprocs > 1:
@@ -84,6 +143,9 @@ def write_slurm_single(inp_file, walltime="48:00:00", clean_orca=False):
             orca_path = "orca"
     else:
         orca_path = "orca"
+        
+    path_text, storage_text = working_path_block(inp_file = inp_file, xyz_file = xyz_file, storage=args.storage)
+    return_text = return_job(storage = storage_text)
 
     with open(slurm_file, 'w') as f:
         f.write(f"""#!/bin/bash
@@ -99,10 +161,14 @@ def write_slurm_single(inp_file, walltime="48:00:00", clean_orca=False):
 module add openmpi
 module load orca
 
+{path_text}
+
 {orca_path} {inp_file}
+
+{return_text}
 """)
 
-        if closing_remarks:
+        if closing_remarks != "":
             f.write(f"\n# Clean up ORCA temporary files\n{closing_remarks}\n")
 
         f.write("\n")
@@ -110,10 +176,8 @@ module load orca
     print(f"SLURM script for {inp_file} was written to: {slurm_file}")
     if clean_orca:
         print(f"... and at your request, this will remove some temporary files at the end of the run:")
-        print("   " + " ".join(tmp_patterns))
 
-
-def write_slurm_array(task_prefix, walltime="48:00:00", clean_orca=False):
+def write_slurm_array(task_prefix, walltime="48:00:00", clean_orca=False, xyz_file = None, storage = None):
     """
     Array mode: prefix -> many .inp -> one array .slurm
     Finds all {task_prefix}*.inp in the current directory.
@@ -142,10 +206,9 @@ def write_slurm_array(task_prefix, walltime="48:00:00", clean_orca=False):
                   f"(first file: nprocs={nprocs}, mem={mem_gb} GB). "
                   "The array will *try* to use the first file's settings for all tasks but this might fail.")
 
-    # tmp cleanup patterns
-    tmp_patterns = ["*.gbw", "*.tmp", "*.densities", "*.engrad", "*.ges", "*_tmp.*"]
+        
     if clean_orca:
-        closing_remarks = "rm -f " + " ".join(tmp_patterns)
+        closing_remarks = make_safe_cleanup(job_name)
     else:
         closing_remarks = ""
 
@@ -172,6 +235,9 @@ def write_slurm_array(task_prefix, walltime="48:00:00", clean_orca=False):
     bash_array_block = "\n".join(bash_array_lines)
 
     max_index = len(inp_files) - 1
+        
+    path_text, storage_text = working_path_block(inp_file = inp_file, xyz_file = xyz_file, storage=args.storage)
+    return_text = return_job(storage = storage_text)
 
     with open(slurm_file, 'w') as f:
         f.write(f"""#!/bin/bash
@@ -196,10 +262,13 @@ job_name=$(basename "$inp_file" .inp)
 
 echo "Running ORCA on $inp_file (job_name=$job_name)"
 
+{path_text}
 {orca_path} "$inp_file"
+{return_text}
+
 """)
 
-        if closing_remarks:
+        if closing_remarks != "":
             f.write(f"\n# Clean up ORCA temporary files\n{closing_remarks}\n")
 
         f.write("\n")
@@ -207,8 +276,7 @@ echo "Running ORCA on $inp_file (job_name=$job_name)"
     print(f"\nArray SLURM script written to: {slurm_file}")
     print(f"  Array range: 0-{max_index}")
     if clean_orca:
-        print(f"... and at your request, each task will remove some temporary files at the end of the run:")
-        print("   " + " ".join(tmp_patterns))
+        print(f"... and at your request, each task will remove some temporary files at the end of the run.")
 
 
 def parse_args():
@@ -234,6 +302,8 @@ def parse_args():
         nargs="?",
         help="ORCA input (.inp) file for single-job mode."
     )
+    
+
     group.add_argument(
         "--task-prefix",
         help="Prefix for array mode. All files matching '<prefix>*.inp' will be used."
@@ -249,6 +319,11 @@ def parse_args():
         action="store_true",
         help="If set, add commands at the end of the Slurm script to remove ORCA temporary files."
     )
+    parser.add_argument(
+        "-s", "--storage",
+        default="TMP_LOCAL",
+        help="Where to write files to? Choices: TMP_LOCAL, TMP_SHARED, SCRATCH. TMP_LOCAL is default as itthe fastest, on-node NVME M2 drives. TMP_SHARED is faster than SCRATCH"
+    )
 
     return parser.parse_args()
 
@@ -261,7 +336,7 @@ if __name__ == "__main__":
         if not args.inp_file.endswith(".inp"):
             print("Error: inp_file must be an .inp file")
             sys.exit(1)
-        write_slurm_single(args.inp_file, walltime=args.time, clean_orca=args.clean_orca)
+        write_slurm_single(args.inp_file, walltime=args.time, clean_orca=args.clean_orca, xyz_file = None, storage = args.storage)
     else:
         # array mode
         write_slurm_array(args.task_prefix, walltime=args.time, clean_orca=args.clean_orca)
