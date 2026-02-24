@@ -12,8 +12,6 @@ Reads ORCA .inp files and produces .slurm scripts for AIRE.
 Supports:
   - single-job mode (one .inp -> one .slurm)
   - array mode (prefix -> many .inp -> one array .slurm)
-  - reads the .inp file for the correct .xyz file and handles coppying etc
-  
 """
 
 
@@ -25,12 +23,18 @@ def parse_xyz_from_orca_input(inp_file):
     with open(inp_file, "r") as f:
         for line in f:
             line = line.strip()
-            if line.lower().startswith("* xyzfile"):
+            if "xyzfile" in line.lower():
                 parts = line.split()
-                if len(parts) >= 5:
-                    return parts[4]
-    return None
-
+                if len(parts) >= 4:
+                    return parts[-1]
+    with open(inp_file, "r") as f:
+        for line in f:                
+            if "xyz" in line.lower():
+            # the XYZ might be still there, just contained in the .inp file. So only throw an error if its missing.  
+                return
+    # otherwise throw error                 
+    print(f"WARNING - couldn't parse .xyz from .inp file: {inp_file}")   
+    return
 
 def working_path_block(inp_file, xyz_file=None, storage='TMP_LOCAL',):
     '''
@@ -78,7 +82,7 @@ def return_job(storage):
 
     return """
 rm -f *.tmp*
-rsync -a . "$working_dir"
+cp -a ./* "$working_dir"/
 cd "$working_dir"
 """
 
@@ -142,8 +146,6 @@ def write_slurm_single(inp_file, walltime, clean_orca, xyz_file, storage):
 
     slurm_file = inp_file.replace(".inp", ".slurm")
 
-    print(f"\n[Single] Job: {job_name}; CPUs: {nprocs}; RAM: {mem_gb} GB; Scratch: {storage}")
-
     if nprocs > 1:
         orca_path = get_full_orca_path()
         if orca_path is None:
@@ -178,9 +180,10 @@ module load orca
 
         if closing_remarks:
             f.write(f"\n# Clean up ORCA temporary files\n{closing_remarks}\n")
-
-    print(f"SLURM script written to: {slurm_file}")
-
+        
+        if args.verbose:
+            print(f"SLURM script written to: {slurm_file}")
+            print(f"\n[Single] Job: {job_name}; CPUs: {nprocs}; RAM: {mem_gb} GB; Scratch: {storage}")
 
 def write_slurm_array(task_prefix, walltime, clean_orca, storage):
 
@@ -243,7 +246,7 @@ fi
 
 if [ "{storage}" != "SCRATCH" ]; then
     rm -f *.tmp*
-    rsync -a . "$working_dir"
+    cp -a ./* "$working_dir"/
     cd "$working_dir"
 fi
 """)
@@ -251,9 +254,10 @@ fi
         if clean_orca:
             f.write("\n# Clean up ORCA temporary files\n")
             f.write('rm -f "$job_name".gbw "$job_name".tmp*\n')
-
-    print(f"\nArray SLURM script written to: {slurm_file}")
-    print(f"Array range: 0-{max_index}")
+    
+    if args.verbose:
+        print(f"\nArray SLURM script written to: {slurm_file}")
+        print(f"Array range: 0-{max_index}")
 
 
 def parse_args():
@@ -287,6 +291,9 @@ def parse_args():
 
     parser.add_argument("-s", "--storage", default="TMP_LOCAL",
                         help="TMP_LOCAL, TMP_SHARED, SCRATCH")
+                        
+    parser.add_argument("--verbose", action="store_true",
+                        help="If on, the program will print some additional output.")                 
 
     return parser.parse_args()
 
