@@ -62,8 +62,10 @@ def working_path_block(inp_file, xyz_file=None, storage='TMP_LOCAL',):
         text = f"""
 cp "{inp_file}" ${storage}/
 cp "{xyz_file}" ${storage}/
-cd ${storage}
+
+#silly bug; define working_dir BEFORE cd-ing to storage...
 working_dir=$(pwd)
+cd ${storage}
 """
 
     return text, storage
