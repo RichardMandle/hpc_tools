@@ -238,8 +238,8 @@ xyz_file=$(grep -i "^\\* xyzfile" "$inp_file" | awk '{{print $5}}')
 if [ "{storage}" != "SCRATCH" ]; then
     cp "$inp_file" ${storage}/
     cp "$xyz_file" ${storage}/
-    cd ${storage}
     working_dir=$(pwd)
+    cd ${storage}
 else
     working_dir=$(pwd)
 fi
