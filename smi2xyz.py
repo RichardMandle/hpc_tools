@@ -3,37 +3,20 @@
 smi2xyz.py
 convert SMILES to 3D .xyz using RDKit; pick the minimum-energy conformer.
 
-
+SF5 groups are problematic, no UFF or MMFF parameters to optimise, so we skip that
+and just let the embeded geometry be. We will (normally!) optimise these anyway so its fine.
 
 '''
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import List, Optional, Tuple
+import numpy as np
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
-
-def parse_args():
-    p = argparse.ArgumentParser(
-        description="Generate 3D geometries (.xyz) from SMILES with RDKit and write the lowest-energy conformer.")
-    g = p.add_mutually_exclusive_group(required=True)
-    g.add_argument("-i", "--smiles", type=str, help="Single SMILES string.")
-    g.add_argument("-f", "--smiles_file", type=Path, help="Text file with one SMILES per line. Lines starting with # are ignored.")
-
-    p.add_argument("-o", "--output", type=str, required=True, help="Output .xyz filename (for single input) or filename prefix (for multi-input).")
-    p.add_argument("-n", "--num_confs", type=int, default=50, help="Number of conformers to generate (default: 50).")
-    p.add_argument("--rms", type=float, default=0.5, help="RMSD pruning threshold in ANGSTROM (default: 0.5).")
-    p.add_argument("--seed", type=int, default=1, help="Random seed for embedding (default: 1).")
-
-    p.add_argument("--embed", type=str, default="ETKDGv3", choices=["ETKDG", "ETKDGv2", "ETKDGv3"], help="Conformer embedding method (default: ETKDGv3)")
-    p.add_argument("--opt", type=str, default="mmff", choices=["mmff", "uff"], help="Force field for optimization/energy (default: mmff).")
-
-    p.add_argument("--e_thresh", type=float, default=None, help="Optional energy window (kcal/mol) relative to the minimum. Only conformers within this window are considered when picking the min. If omitted, all conformers are considered.")
-    p.add_argument("--max_iter", type=int, default=200, help="Max FF optimization iterations per conformer (default: 200).")
-    p.add_argument("--name", type=str, default=None, help="Optional name/comment to include in the XYZ title line for single-input mode.")
-    return p.parse_args()
+from rdkit.Geometry import Point3D
 
 def read_smiles_lines(path: Path) -> List[str]:
     smiles_list = []
@@ -52,6 +35,7 @@ def get_embed_params(method: str, seed: int, prune_rms: float):
         params = AllChem.ETKDGv2()
     else:
         params = AllChem.ETKDG()  
+        
     params.randomSeed = seed
     params.pruneRmsThresh = prune_rms
     params.useRandomCoords = False
@@ -63,8 +47,14 @@ def optimize_and_energy(mol: Chem.Mol, opt: str, max_iter: int) -> Tuple[List[fl
     optimise all conformers; return energies (kcal/mol) and the FF used ("mmff" or "uff").
     falls back to UFF if MMFF props aren't available.
     
-    This will fail for SF5 stuff and hypervalent things generally; use obabel for those
+    This will fail for SF5 stuff and hypervalent things generally, so we skip them. 
+    We could update that function so we pass other problematic stuff into it.
     """
+    
+    if should_skip_ff_optimisation(mol):
+        n_confs = mol.GetNumConformers()
+        return [0.0] * n_confs, "none_skip_sf5"
+
     if opt == "mmff":
         props = AllChem.MMFFGetMoleculeProperties(mol, mmffVariant="MMFF94s")
         if props is not None:
@@ -140,7 +130,9 @@ def process_one(smiles: str, out_path: Path, args, label: Optional[str]=None) ->
 
         best_id = choose_min_conformer(energies, args.e_thresh)
         best_e = energies[best_id]
-
+        
+        mol = fix_sf5_geometry(mol, conf_id = best_id)
+        
         write_xyz(mol, best_id, out_path, smiles, best_e, ff_used, name=label or args.name)
         print(f"[OK] Wrote {out_path} ({ff_used}, E={best_e:.4f} kcal/mol)")
         return True
@@ -148,6 +140,116 @@ def process_one(smiles: str, out_path: Path, args, label: Optional[str]=None) ->
     except Exception as e:
         print(f"[ERROR] {smiles}: {e}", file=sys.stderr)
         return False
+
+def should_skip_ff_optimisation(mol: Chem.Mol) -> bool:
+    """
+    Return True for motifs where RDKit UFF/MMFF optimisation is likely
+    to produce bad geometries.
+
+    Currently flags R-SF5 / hypervalent sulfur-fluorine centres.
+    """
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum() != 16:  # sulfur
+            continue
+
+        nbrs = list(atom.GetNeighbors())
+        n_f = sum(n.GetAtomicNum() == 9 for n in nbrs)
+        n_non_f = sum(n.GetAtomicNum() != 9 for n in nbrs)
+
+        # R-SF5 - sulfur attached to five fluorines and at least one non-F atom; this fails UFF / MMFF, so we skip.
+        if n_f >= 5 and n_non_f >= 1:
+            return True
+
+    return False
+    
+def fix_sf5_geometry(mol, conf_id=0, sf_bond=1.58):
+    '''
+    Replace borked geometry for R-SF5 group with an idealised octahedral geometry.
+
+    This makes a bunch of assumptions:
+        R-S-F_ax = 180 degrees
+        F_eq-S-F_ax = 90 degrees
+        F_eq-S-F_eq = 90/180 degrees
+
+    What this does is give a _starting point_ for further optimisation; it does not give a geometry that is 
+    anything like a minimum. You must optimise further; and we'll print a note about that...
+    '''
+    
+    conf = mol.GetConformer(conf_id)
+
+    def get_xyz(idx):
+        p = conf.GetAtomPosition(int(idx))
+        return np.array([p.x, p.y, p.z], dtype=float)
+
+    def set_xyz(idx, xyz):
+        conf.SetAtomPosition(int(idx), Point3D(float(xyz[0]), float(xyz[1]), float(xyz[2])))
+
+    def unit(v):
+        n = np.linalg.norm(v)
+        
+        if n < 1e-10:
+            return np.array([1.0, 0.0, 0.0])
+            
+        return v / n
+
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum() != 16:  # sulphur!
+            continue
+
+        nbrs = list(atom.GetNeighbors())
+        f_nbrs = [a for a in nbrs if a.GetAtomicNum() == 9]
+        r_nbrs = [a for a in nbrs if a.GetAtomicNum() != 9]
+
+        # we are specifically targetting R-SF5 so f_nbrs (numbers) is going to be 5; so bounce any that aren't that
+        if len(f_nbrs) != 5 or len(r_nbrs) < 1:
+            continue
+
+        s_idx = atom.GetIdx()
+        r_idx = r_nbrs[0].GetIdx()
+
+        S = get_xyz(s_idx)
+        R = get_xyz(r_idx)
+
+        cs_axis = unit(R - S) # Unit vector from S towards the carbon / non-F substituent - this sets the orientation of the SF5 group.
+
+        axial_dir = -cs_axis # ax. fluorine is opposite the substituent; typically along the C-S bond vector
+
+        trial = np.array([1.0, 0.0, 0.0])
+        if abs(np.dot(trial, cs_axis)) > 0.9:
+            trial = np.array([0.0, 1.0, 0.0])
+
+        eq1 = unit(np.cross(cs_axis, trial))
+        eq2 = unit(np.cross(cs_axis, eq1))
+
+        dirs = [axial_dir, eq1, eq2, -eq1, -eq2,] # This is pretty crude geometry but it should work. An SF5 group is symmetrical (isn't it? 19F nMR?)
+
+        f_idxs = [a.GetIdx() for a in f_nbrs]
+
+        for f_idx, direction in zip(f_idxs, dirs):
+            set_xyz(f_idx, S + sf_bond * direction)
+            
+        print("\nPerforming geometry fix on -SF5 group. \nNote, you **MUST** optimise this geometry, -SF5 coordinates are approximate only!\n")
+    return mol
+    
+def parse_args():
+    p = argparse.ArgumentParser(
+        description="Generate 3D geometries (.xyz) from SMILES with RDKit and write the lowest-energy conformer.")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("-i", "--smiles", type=str, help="Single SMILES string.")
+    g.add_argument("-f", "--smiles_file", type=Path, help="Text file with one SMILES per line. Lines starting with # are ignored.")
+
+    p.add_argument("-o", "--output", type=str, required=True, help="Output .xyz filename (for single input) or filename prefix (for multi-input).")
+    p.add_argument("-n", "--num_confs", type=int, default=50, help="Number of conformers to generate (default: 50).")
+    p.add_argument("--rms", type=float, default=0.5, help="RMSD pruning threshold in ANGSTROM (default: 0.5).")
+    p.add_argument("--seed", type=int, default=1, help="Random seed for embedding (default: 1).")
+
+    p.add_argument("--embed", type=str, default="ETKDGv3", choices=["ETKDG", "ETKDGv2", "ETKDGv3"], help="Conformer embedding method (default: ETKDGv3)")
+    p.add_argument("--opt", type=str, default="mmff", choices=["mmff", "uff"], help="Force field for optimization/energy (default: mmff).")
+
+    p.add_argument("--e_thresh", type=float, default=None, help="Optional energy window (kcal/mol) relative to the minimum. Only conformers within this window are considered when picking the min. If omitted, all conformers are considered.")
+    p.add_argument("--max_iter", type=int, default=200, help="Max FF optimization iterations per conformer (default: 200).")
+    p.add_argument("--name", type=str, default=None, help="Optional name/comment to include in the XYZ title line for single-input mode.")
+    return p.parse_args()
 
 def main():
     args = parse_args()
