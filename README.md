@@ -1,19 +1,10 @@
 # hpc_tools
-Python and Bash scripts for high performance computing workflows on ARC3/4 and AIRE at the University of Leeds
+Python and Bash scripts for high performance computing workflows, formerly on ARC3/4, now AIRE / CALDER at the University of Leeds
 
-## plt_csv.py
-Simple plotter of csv data using python. Arguments:<br>-i - input .csv file.<br>-t - title for plot.<br>-x - x-label for plot, if not in header of .csv.<br>-y - y-label for plot, if not in header of csv.<br><br>
-<br><br>Example:<br>
-```python $HOME/py_files/plt_csv.py -i P1.csv```<br>
-![image](https://github.com/user-attachments/assets/42b89ad7-7bbb-4aa8-8ec8-4aef8224e24f)
+## splot.py
+simple plotter (s plot) for various datafiles used on HPC (*.csv, *.dat, *.xvg). Can read multiple series in a file (e.g. from ```gmx energy```); can write plots directly to image (```-o myplot.png```), or plot interactively. usage is easy: ```python ~/splot.py -i energy.xvg -o gmx_energy_plot.png```. 
 
-## plt_xvg.py
-Simple plotter of gromacs .xvg data using python. Will read header data from xvg for labels etc. Arguments:<br>-i - input .xvg file.<br>-t - title for plot.<br>-x - x-label for plot, if not in header of .xvg.<br>-y - y-label for plot, if not in header of xvg.<br><br>
-Example:<br>
-```gmx energy```
-```18 19 20 0```
-```python $HOME/py_files/plt_xvg.py -i energy.xvg```
-![image](https://github.com/user-attachments/assets/564a72f1-157c-47b4-959e-513b30f6de45)
+<img width="1167" height="867" alt="image" src="https://github.com/user-attachments/assets/c85c8a59-4403-4b3b-9b50-507a201f8a16" />
 
 ## OP.py
 Calculation of order parameters using MDtraj. Arguments:<br>-traj trajectory file (e.g. .trr, .xtc).<br>-top - topology file (e.g. .gro).
@@ -187,3 +178,19 @@ Reads a Gaussian.log file and produces a new .gjf file with the final geometry i
 ```--remove_existing```: Will remove existing .gjf files with the same name as the output (default = on).<br>
 ## pygauss
 A python module with a lot of tools for interacting with Gaussian output and plotting/viewing spectra (https://github.com/RichardMandle/pygauss)
+
+
+### Retired Tools
+## plt_csv.py
+Simple plotter of csv data using python. Arguments:<br>-i - input .csv file.<br>-t - title for plot.<br>-x - x-label for plot, if not in header of .csv.<br>-y - y-label for plot, if not in header of csv.<br><br>
+<br><br>Example:<br>
+```python $HOME/py_files/plt_csv.py -i P1.csv```<br>
+![image](https://github.com/user-attachments/assets/42b89ad7-7bbb-4aa8-8ec8-4aef8224e24f)
+
+## plt_xvg.py
+Simple plotter of gromacs .xvg data using python. Will read header data from xvg for labels etc. Arguments:<br>-i - input .xvg file.<br>-t - title for plot.<br>-x - x-label for plot, if not in header of .xvg.<br>-y - y-label for plot, if not in header of xvg.<br><br>
+Example:<br>
+```gmx energy```
+```18 19 20 0```
+```python $HOME/py_files/plt_xvg.py -i energy.xvg```
+![image](https://github.com/user-attachments/assets/564a72f1-157c-47b4-959e-513b30f6de45)
