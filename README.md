@@ -6,14 +6,8 @@ simple plotter (s plot) for various datafiles used on HPC (*.csv, *.dat, *.xvg).
 
 <img width="1167" height="867" alt="image" src="https://github.com/user-attachments/assets/c85c8a59-4403-4b3b-9b50-507a201f8a16" />
 
-## OP.py
-Calculation of order parameters using MDtraj. Arguments:<br>-traj trajectory file (e.g. .trr, .xtc).<br>-top - topology file (e.g. .gro).
-
-## P1.py
-Calculation of <P1> dipole order paramter using Gromacs/Numpy; saves data as .csv. Arguments:<br>-s Gromacs portable run file (.tpr).<br>-b - frame to begin from.<br>-e - frame to end on.
-
-## Ps.py
-Calculate the spontaneous polarisation of an MD simulation using Gromacs/Numpy; saves data as .csv. Arguments:<br>-s Gromacs portable run file (.tpr).<br>-b - frame to begin from.<br>-e - frame to end on.
+## lcmd.py
+Python script for analysis of molecular dynamics trajectories of liquid crystalline phases / materials. Computes the P1 (```-p1```), P2 (```-p2```), and P4 (```-p4```) order paramters. Can compute spontaneous polarisation (```-ps```). Requires mdtraj (P2, P4) and gromacs (P1, Ps) to be installed. Replaces the older OP.py/P1.py/Ps.py - same logic, just wrapped into one tool.
 
 # Gromacs Workflow Tools
 ## setup.sh
@@ -184,13 +178,18 @@ A python module with a lot of tools for interacting with Gaussian output and plo
 ## plt_csv.py
 Simple plotter of csv data using python. Arguments:<br>-i - input .csv file.<br>-t - title for plot.<br>-x - x-label for plot, if not in header of .csv.<br>-y - y-label for plot, if not in header of csv.<br><br>
 <br><br>Example:<br>
-```python $HOME/py_files/plt_csv.py -i P1.csv```<br>
-![image](https://github.com/user-attachments/assets/42b89ad7-7bbb-4aa8-8ec8-4aef8224e24f)
+```python $HOME/py_files/plt_csv.py -i P1.csv```
 
 ## plt_xvg.py
 Simple plotter of gromacs .xvg data using python. Will read header data from xvg for labels etc. Arguments:<br>-i - input .xvg file.<br>-t - title for plot.<br>-x - x-label for plot, if not in header of .xvg.<br>-y - y-label for plot, if not in header of xvg.<br><br>
 Example:<br>
-```gmx energy```
-```18 19 20 0```
 ```python $HOME/py_files/plt_xvg.py -i energy.xvg```
-![image](https://github.com/user-attachments/assets/564a72f1-157c-47b4-959e-513b30f6de45)
+## OP.py
+Calculation of order parameters using MDtraj. Arguments:<br>-traj trajectory file (e.g. .trr, .xtc).<br>-top - topology file (e.g. .gro).
+
+## P1.py
+Calculation of <P1> dipole order paramter using Gromacs/Numpy; saves data as .csv. Arguments:<br>-s Gromacs portable run file (.tpr).<br>-b - frame to begin from.<br>-e - frame to end on.
+
+## Ps.py
+Calculate the spontaneous polarisation of an MD simulation using Gromacs/Numpy; saves data as .csv. Arguments:<br>-s Gromacs portable run file (.tpr).<br>-b - frame to begin from.<br>-e - frame to end on.
+
