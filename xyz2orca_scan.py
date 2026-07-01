@@ -82,6 +82,7 @@ def make_orca_scan_input(
 %geom scan
     D {i} {j} {k} {l} = {start:.6f}, {end:.6f}, {nsteps}
 end
+    AddExtraBonds false
 end
 #{stem}
 * xyzfile {charge} {multiplicity} {xyz_file}
@@ -100,7 +101,8 @@ if __name__ == "__main__":
                         help="ORCA-style atom indices, i.e. zero-based")
     parser.add_argument("--nsteps", type=int, default=72)
     parser.add_argument("--scan-degrees", type=float, default=360.0)
-
+    # TO DO 
+    # implement some option to turn on/off bond breaking/making 
     args = parser.parse_args()
 
     xyz_path = Path(args.xyz_file)
