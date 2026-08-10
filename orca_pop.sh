@@ -21,7 +21,7 @@ while IFS= read -r f; do
         printf "%s\t%s\n" "$f" "$E" >> "$tmp"
     fi
 
-done < <(find . -name "orca.out" -type f)
+done < <(find . -name "*.out" -type f)
 
 if [[ ! -s "$tmp" ]]; then
     echo "No ORCA energies found."
