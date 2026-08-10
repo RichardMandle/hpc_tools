@@ -10,14 +10,24 @@ HARTREE_TO_KJ=2625.499639
 
 tmp=$(mktemp)
 
+
+
 # read the energy values for each file we find
-for f in "$@"; do
+while IFS= read -r f; do
+
     E=$(grep "FINAL SINGLE POINT ENERGY" "$f" | tail -1 | awk '{print $5}')
 
     if [[ -n "$E" ]]; then
-        printf "%s\t%.12f\n" "$f" "$E" >> "$tmp"
+        printf "%s\t%s\n" "$f" "$E" >> "$tmp"
     fi
-done
+
+done < <(find . -name "orca.out" -type f)
+
+if [[ ! -s "$tmp" ]]; then
+    echo "No ORCA energies found."
+    rm "$tmp"
+    exit 1
+fi
 
 #find the lowest energy
 Emin=$(awk 'NR==1 {min=$2} $2<min {min=$2} END {print min}' "$tmp")
